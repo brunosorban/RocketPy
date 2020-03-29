@@ -154,12 +154,15 @@ class Rocket:
 
     def __init__(
         self,
+        # TODO: remove
         motor,
         mass,
         inertiaI,
         inertiaZ,
         radius,
+        # TODO: remove
         distanceRocketNozzle,
+        # TODO: remove
         distanceRocketPropellant,
         powerOffDrag,
         powerOnDrag,
@@ -212,13 +215,15 @@ class Rocket:
         self.mass = mass
         self.inertiaI = inertiaI
         self.inertiaZ = inertiaZ
-        self.centerOfMass = distanceRocketPropellant * motor.mass / (mass + motor.mass)
+        # TODO: change center of mass calculation based on variable motor center of mass location
+        self.centerOfMass = distanceRocketPropellant * motor.propellant.mass / (mass + motor.propellant.mass)
 
         # Define rocket geometrical parameters in SI units
         self.radius = radius
         self.area = np.pi * self.radius ** 2
 
         # Center of mass distance to points of interest
+        # TODO: change how this distances are implemented
         self.distanceRocketNozzle = distanceRocketNozzle
         self.distanceRocketPropellant = distanceRocketPropellant
 
@@ -258,6 +263,7 @@ class Rocket:
         )
 
         # Define motor to be used
+        # TODO: Change how this works
         self.motor = motor
 
         # Important dynamic inertial quantities
@@ -270,12 +276,13 @@ class Rocket:
 
         return None
 
+    # TODO: change how this is calculated based on variable motor cm location
     def evaluateReducedMass(self):
         """Calculates and returns the rocket's total reduced mass. The
         reduced mass is defined as the product of the propellant mass
-        and the mass of the rocket with outpropellant, divided by the
+        and the mass of the rocket with out propellant, divided by the
         sum of the propellant mass and the rocket mass. The function
-        returns a object of the Function class and is defined as a
+        returns an object of the Function class and is defined as a
         function of time. 
 
         Parameters
@@ -296,7 +303,7 @@ class Rocket:
             return False
 
         # Retrieve propellant mass as a function of time
-        motorMass = self.motor.mass
+        motorMass = self.motor.propellant.mass
 
         # Retrieve constant rocket mass with out propellant
         mass = self.mass
@@ -331,7 +338,7 @@ class Rocket:
             return False
 
         # Calculate total mass by summing up propellant and dry mass
-        self.totalMass = self.mass + self.motor.mass
+        self.totalMass = self.mass + self.motor.propellant.mass
         self.totalMass.setOutputs("Total Mass (Rocket + Propellant) (kg)")
 
         # Return total mass

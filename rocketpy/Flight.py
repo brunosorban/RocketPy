@@ -1155,13 +1155,13 @@ class Flight:
             # Motor burning
             # Retrieve important motor quantities
             # Inertias
-            Tz = self.rocket.motor.inertiaZ.getValueOpt(t)
-            Ti = self.rocket.motor.inertiaI.getValueOpt(t)
-            TzDot = self.rocket.motor.inertiaZDot.getValueOpt(t)
-            TiDot = self.rocket.motor.inertiaIDot.getValueOpt(t)
+            Tz = self.rocket.motor.propellant.inertiaZ.getValueOpt(t)
+            Ti = self.rocket.motor.propellant.inertiaI.getValueOpt(t)
+            TzDot = self.rocket.motor.propellant.inertiaZDot.getValueOpt(t)
+            TiDot = self.rocket.motor.propellant.inertiaIDot.getValueOpt(t)
             # Mass
-            MtDot = self.rocket.motor.massDot.getValueOpt(t)
-            Mt = self.rocket.motor.mass.getValueOpt(t)
+            MtDot = self.rocket.motor.propellant.massDot.getValueOpt(t)
+            Mt = self.rocket.motor.propellant.mass.getValueOpt(t)
             # Thrust
             Thrust = self.rocket.motor.thrust.getValueOpt(t)
             # Off center moment
@@ -1186,6 +1186,8 @@ class Flight:
         M = Mt + Mr
         mu = (Mt * Mr) / (Mt + Mr)
         # Geometry
+        # TODO: verify if b and c should be positive or negative
+        # TODO: use get value opt
         b = -self.rocket.distanceRocketPropellant
         c = -self.rocket.distanceRocketNozzle
         a = b * Mt / M
@@ -1280,6 +1282,7 @@ class Flight:
                     M2 += (compCp + a) * compLiftXB
         # Calculate derivatives
         # Angular acceleration
+        # TODO: Fix change in inertia dyadic derivative due to varying b.
         alpha1 = (
             M1
             - (
@@ -1717,8 +1720,8 @@ class Flight:
         mu = self.rocket.reducedMass
         Rz = self.rocket.inertiaZ
         Ri = self.rocket.inertiaI
-        Tz = self.rocket.motor.inertiaZ
-        Ti = self.rocket.motor.inertiaI
+        Tz = self.rocket.motor.propellant.inertiaZ
+        Ti = self.rocket.motor.propellant.inertiaI
         I1, I2, I3 = (Ri + Ti + mu * b ** 2), (Ri + Ti + mu * b ** 2), (Rz + Tz)
         # Redefine I1, I2 and I3 grid
         grid = self.vx[:, 0]

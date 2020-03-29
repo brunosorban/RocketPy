@@ -12,6 +12,7 @@ import time
 from datetime import datetime, timedelta
 from inspect import signature, getsourcelines
 from collections import namedtuple
+from types import SimpleNamespace
 
 import numpy as np
 from scipy import integrate
@@ -58,22 +59,22 @@ class SolidMotor:
             Initial mass of each grain in kg.
         Motor.propellantInitialMass : float
             Total propellant initial mass in kg.
-        Motor.mass : Function
+        Motor.propellant.mass : Function
             Propellant total mass in kg as a function of time.
-        Motor.massDot : Function
+        Motor.propellant.massDot : Function
             Time derivative of propellant total mass in kg/s as a function
             of time.
-        Motor.inertiaI : Function
+        Motor.propellant.inertiaI : Function
             Propellant moment of inertia in kg*meter^2 with respect to axis
             perpendicular to axis of cylindrical symmetry of each grain,
             given as a function of time.
-        Motor.inertiaIDot : Function
+        Motor.propellant.inertiaIDot : Function
             Time derivative of inertiaI given in kg*meter^2/s as a function
             of time.
-        Motor.inertiaZ : Function
+        Motor.propellant.inertiaZ : Function
             Propellant moment of inertia in kg*meter^2 with respect to axis of
             cylindrical symmetry of each grain, given as a function of time.
-        Motor.inertiaDot : Function
+        Motor.propellant.inertiaZDot : Function
             Time derivative of inertiaZ given in kg*meter^2/s as a function
             of time.   
         
@@ -227,21 +228,26 @@ class SolidMotor:
         self.grainInitialInnerRadius = grainInitialInnerRadius
         self.grainInitialHeight = grainInitialHeight
         # Other quantities that will be computed
-        self.exhaustVelocity = None
-        self.massDot = None
-        self.mass = None
+        # Propellant intertia properties
+        self.propellant = SimpleNamespace()
+        self.propellant.mass = None
+        self.propellant.massDot = None
+        self.propellant.inertiaI = None
+        self.propellant.inertiaIDot = None
+        self.propellant.inertiaZ = None
+        self.propellant.inertiaZDot = None
+        # Grain properties
         self.grainInnerRadius = None
         self.grainHeight = None
-        self.burnArea = None
-        self.Kn = None
-        self.burnRate = None
-        self.inertiaI = None
-        self.inertiaIDot = None
-        self.inertiaZ = None
-        self.inertiaDot = None
+        # Thrust properties
+        self.exhaustVelocity = None
         self.maxThrust = None
         self.maxThrustTime = None
         self.averageThrust = None
+        # Burn properties
+        self.Kn = None
+        self.burnArea = None
+        self.burnRate = None
 
         # Compute uncalculated quantities
         # Thrust information - maximum and average
@@ -368,7 +374,7 @@ class SolidMotor:
         mass by assuming constant exhaust velocity. The formula used
         is the opposite of thrust divided by exhaust velocity. The
         result is a function of time, object of the Function class,
-        which is stored in self.massDot.
+        which is stored in self.propellant.massDot.
 
         Parameters
         ----------
@@ -376,7 +382,7 @@ class SolidMotor:
         
         Returns
         -------
-        self.massDot : Function
+        self.propellant.massDot : Function
             Time derivative of total propellant mas as a function
             of time.
         """
@@ -385,12 +391,12 @@ class SolidMotor:
             self.evaluateExhaustVelocity()
 
         # Create mass dot Function
-        self.massDot = self.thrust / (-self.exhaustVelocity)
-        self.massDot.setOutputs("Mass Dot (kg/s)")
-        self.massDot.setExtrapolation("zero")
+        self.propellant.massDot = self.thrust / (-self.exhaustVelocity)
+        self.propellant.massDot.setOutputs("Mass Dot (kg/s)")
+        self.propellant.massDot.setExtrapolation("zero")
 
         # Return Function
-        return self.massDot
+        return self.propellant.massDot
 
     def evaluateMass(self):
         """Calculates and returns the total propellant mass curve by
@@ -398,7 +404,7 @@ class SolidMotor:
         evaluateMassDot. Numerical integration is done with the
         Trapezoidal Rule, given the same result as scipy.integrate.
         odeint but 100x faster. The result is a function of time,
-        object of the class Function, which is stored in self.mass.
+        object of the class Function, which is stored in self.propellant.mass.
 
         Parameters
         ----------
@@ -406,12 +412,12 @@ class SolidMotor:
         
         Returns
         -------
-        self.mass : Function
+        self.propellant.mass : Function
             Total propellant mass as a function of time.
         """
         # Retrieve mass dot curve data
-        t = self.massDot.source[:, 0]
-        ydot = self.massDot.source[:, 1]
+        t = self.propellant.massDot.source[:, 0]
+        ydot = self.propellant.massDot.source[:, 1]
 
         # Set initial conditions
         T = [0]
@@ -423,7 +429,7 @@ class SolidMotor:
             y += [y[i - 1] + 0.5 * (t[i] - t[i - 1]) * (ydot[i] + ydot[i - 1])]
 
         # Create Function
-        self.mass = Function(
+        self.propellant.mass = Function(
             np.concatenate(([T], [y])).transpose(),
             "Time (s)",
             "Propellant Total Mass (kg)",
@@ -432,7 +438,7 @@ class SolidMotor:
         )
 
         # Return Mass Function
-        return self.mass
+        return self.propellant.mass
 
     def evaluateGeometry(self):
         """Calculates grain inner radius and grain height as a
@@ -461,14 +467,14 @@ class SolidMotor:
         y0 = [self.grainInitialInnerRadius, self.grainInitialHeight]
 
         # Define time mesh
-        t = self.massDot.source[:, 0]
+        t = self.propellant.massDot.source[:, 0]
 
         # Define system of differential equations
         density = self.grainDensity
         rO = self.grainOuterRadius
 
         def geometryDot(y, t):
-            grainMassDot = self.massDot(t) / self.grainNumber
+            grainMassDot = self.propellant.massDot(t) / self.grainNumber
             rI, h = y
             rIDot = (
                 -0.5 * grainMassDot / (density * np.pi * (rO ** 2 - rI ** 2 + rI * h))
@@ -526,7 +532,7 @@ class SolidMotor:
             "constant",
         )
         # Burn Rate
-        self.burnRate = (-1) * self.massDot / (self.burnArea * self.grainDensity)
+        self.burnRate = (-1) * self.propellant.massDot / (self.burnArea * self.grainDensity)
         self.burnRate.setOutputs("Burn Rate (m/s)")
 
         return [self.grainInnerRadius, self.grainHeight]
@@ -554,8 +560,8 @@ class SolidMotor:
 
         # Inertia I
         # Calculate inertia I for each grain
-        grainMass = self.mass / self.grainNumber
-        grainMassDot = self.massDot / self.grainNumber
+        grainMass = self.propellant.mass / self.grainNumber
+        grainMassDot = self.propellant.massDot / self.grainNumber
         grainNumber = self.grainNumber
         grainInertiaI = grainMass * (
             (1 / 4) * (self.grainOuterRadius ** 2 + self.grainInnerRadius ** 2)
@@ -568,8 +574,8 @@ class SolidMotor:
         d = d * (self.grainInitialHeight + self.grainSeparation)
 
         # Calculate inertia for all grains
-        self.inertiaI = grainNumber * (grainInertiaI) + grainMass * np.sum(d ** 2)
-        self.inertiaI.setOutputs("Propellant Inertia I (kg*m2)")
+        self.propellant.inertiaI = grainNumber * (grainInertiaI) + grainMass * np.sum(d ** 2)
+        self.propellant.inertiaI.setOutputs("Propellant Inertia I (kg*m2)")
 
         # Inertia I Dot
         # Calculate each grain's inertia I dot
@@ -585,28 +591,28 @@ class SolidMotor:
         )
 
         # Calculate inertia I dot for all grains
-        self.inertiaIDot = grainNumber * (grainInertiaIDot) + grainMassDot * np.sum(
+        self.propellant.inertiaIDot = grainNumber * (grainInertiaIDot) + grainMassDot * np.sum(
             d ** 2
         )
-        self.inertiaIDot.setOutputs("Propellant Inertia I Dot (kg*m2/s)")
+        self.propellant.inertiaIDot.setOutputs("Propellant Inertia I Dot (kg*m2/s)")
 
         # Inertia Z
-        self.inertiaZ = (
+        self.propellant.inertiaZ = (
             (1 / 2.0)
-            * self.mass
+            * self.propellant.mass
             * (self.grainOuterRadius ** 2 + self.grainInnerRadius ** 2)
         )
-        self.inertiaZ.setOutputs("Propellant Inertia Z (kg*m2)")
+        self.propellant.inertiaZ.setOutputs("Propellant Inertia Z (kg*m2)")
 
         # Inertia Z Dot
-        self.inertiaZDot = (
-            (1 / 2.0) * (self.massDot * self.grainOuterRadius ** 2)
-            + (1 / 2.0) * (self.massDot * self.grainInnerRadius ** 2)
-            + self.mass * self.grainInnerRadius * self.burnRate
+        self.propellant.inertiaZDot = (
+            (1 / 2.0) * (self.propellant.massDot * self.grainOuterRadius ** 2)
+            + (1 / 2.0) * (self.propellant.massDot * self.grainInnerRadius ** 2)
+            + self.propellant.mass * self.grainInnerRadius * self.burnRate
         )
-        self.inertiaZDot.setOutputs("Propellant Inertia Z Dot (kg*m2/s)")
+        self.propellant.inertiaZDot.setOutputs("Propellant Inertia Z Dot (kg*m2/s)")
 
-        return [self.inertiaI, self.inertiaZ]
+        return [self.propellant.inertiaI, self.propellant.inertiaZ]
 
     def importEng(self, fileName):
         """ Read content from .eng file and process it, in order to
@@ -795,17 +801,17 @@ class SolidMotor:
         # Show plots
         print("\nPlots")
         self.thrust()
-        self.mass()
-        self.massDot()
+        self.propellant.mass()
+        self.propellant.massDot()
         self.grainInnerRadius()
         self.grainHeight()
         self.burnRate()
         self.burnArea()
         self.Kn()
-        self.inertiaI()
-        self.inertiaIDot()
-        self.inertiaZ()
-        self.inertiaZDot()
+        self.propellant.inertiaI()
+        self.propellant.inertiaIDot()
+        self.propellant.inertiaZ()
+        self.propellant.inertiaZDot()
 
         return None
 
