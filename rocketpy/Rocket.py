@@ -22,6 +22,7 @@ from matplotlib import cm
 
 from .Function import Function
 
+
 class Rocket:
 
     """Keeps all rocket and parachute information.
@@ -216,7 +217,11 @@ class Rocket:
         self.inertiaI = inertiaI
         self.inertiaZ = inertiaZ
         # TODO: change center of mass calculation based on variable motor center of mass location
-        self.centerOfMass = distanceRocketPropellant * motor.propellant.mass / (mass + motor.propellant.mass)
+        self.centerOfMass = (
+            distanceRocketPropellant
+            * motor.propellant.mass
+            / (mass + motor.propellant.mass)
+        )
 
         # Define rocket geometrical parameters in SI units
         self.radius = radius
@@ -378,6 +383,65 @@ class Rocket:
 
         # Return self
         return self
+
+    def setMotor(self, motor, distanceRocketMotor):
+        """ Sets the motor that the rocket will be using.
+
+        Parameters
+        ----------
+        # TODO: create a formal standard of the motor class.
+        motor : Motor class (e.g. SolidMotor)
+            Instance of a motor class. SolidMotor is a motor class which comes
+            implemented in RocketPy by default. However, other classes can
+            be implemented and customized. A motor class is any class that
+            has the following attributes: thurst, burnOutTime, casing.mass,
+            casing.inertiaI, casing.inertiaZ, propellant.mass,
+            propellant.massDot, propellant.inertiaI, propellant.inertiaIDot,
+            propellant.inertiaZ, propellant.inertiaZDot,
+            propellant.centerOfMass, distanceCasingNozzle.
+        distanceRocketMotor : float
+            Value representing the distance between the center of mass of the
+            rocket without the motor (no casing and no motor propellant) and
+            the center of mass of the motor casing (without propellant).
+        
+        Returns
+        -------
+        None
+        """
+        # Save motor definition
+        self.motor = motor
+
+        # Manage distance definitions
+        self.distanceRocketMotor = distanceRocketMotor
+        self.distanceRocketPropellant = (
+            distanceRocketMotor + motor.propellant.centerOfMass
+        )
+        self.distanceRocketNozzle = distanceRocketMotor + motor.distanceCasingNozzle
+
+        # Add casing inertia properties to rocket
+        self.mass += motor.casing.mass
+        self.inertiaI += (
+            motor.casing.inertialI + motor.casing.mass * distanceRocketMotor ** 2
+        )
+        self.inertiaZ += (
+            motor.casing.inertialZ + motor.casing.mass * distanceRocketMotor ** 2
+        )
+        # TODO: Verify parallel axis theorem in lines above
+
+        # Manage variable mass effects
+        # Calculate total center of mass, relative to the unloaded rocket's
+        # center of mass.
+        self.centerOfMass = (
+            self.distanceRocketPropellant
+            * motor.propellant.mass
+            / (self.mass + motor.propellant.mass)
+        )
+
+        # Calculate dynamic inertial quantities
+        self.evaluateReducedMass()
+        self.evaluateTotalMass()
+
+        return
 
     def addTail(self, topRadius, bottomRadius, length, distanceToCM):
         """Create a new tail or rocket diameter change, storing its
