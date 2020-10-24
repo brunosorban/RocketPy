@@ -493,7 +493,7 @@ class Rocket:
         # Return self
         return self.aerodynamicSurfaces[-1]
 
-    def addFins(self, n, span, rootChord, tipChord, distanceToCM, radius=0, airfoil = None):
+    def addFins(self, n, span, rootChord, tipChord, distanceToCM, radius=0, airfoil = None, delta=0):
         """Create a fin set, storing its parameters as part of the
         aerodynamicSurfaces list. Its parameters are the axial position
         along the rocket and its derivative of the coefficient of lift
@@ -547,6 +547,25 @@ class Rocket:
         self.tipChord = Ct
         self.span = s
         self.distanceRocketFins = distanceToCM
+        self.delta = delta * np.pi / 180
+        self.n = n
+
+        Af = Yr * s / 2; # fin area
+        self.AR= 2 * (s**2) / Af
+
+        #pre calculations for trapezoidal fins
+        c1 = ((Yr) /  2) * (self.radius**2) * s
+        c2 = ((Cr + 2 * Ct) / 3) * self.radius * (s**2)
+        c3 = ((Cr + 3 * Ct) / 12) * (s**3);
+        self.trapezoidal_constant = c1 + c2 + c3
+
+        gamac = np.arctan( (Cr - Ct) / (2 * s) ) # mid chord angle
+        self.cos_gamac = np.cos(gamac)
+
+        self.Y = self.radius + (s/3) * (Cr + 2 * Ct) / Yr #mean aerodynamic chord distance with the radius added
+        self.Cnalfa1_parcial = self.AR * (Af / self.area)
+        self.Cnalfa1_parcial_2 = self.AR / self.cos_gamac
+        self.Clfdelta_parcial = n * self.Y / (2 * self.radius)
 
         # Calculate cp position relative to cm
         if distanceToCM < 0:
@@ -1008,3 +1027,47 @@ class Rocket:
 
     # Variables
     railButtonPair = namedtuple("railButtonPair", "distanceToCM angularPosition")
+
+    def calculate_roll_moment(self, V, a, omega):
+        """Calculates the resultant roll moment. Roll forcing and roll damping
+        are calculates separately before being added. Accepts only trapezoidal
+        fins. If not, please set delta=0.
+        Parameters
+        ----------
+        V : float
+            Free-stream velocity.
+        a : float
+            Speed of sound.
+        n : int
+            Number of fins.
+        delta : float
+            Fins medium angle of deflection in radians.
+        omega : float
+            Rocket's angular velocity Omega 3. Direction 3 is in the rocket's 
+            body axis and points in the direction of cylindrical symmetry.
+        Notes
+        -----
+        The equations utilized to calculate this section were calculated from
+        Barrowman, 1967 and openrocket documentation by Nikansen, 2013.
+        
+        Returns
+        -------
+        moment: float
+            Moment of roll in the rocket's body axis. The chosen direction is 
+            in the rocket's body axis and points in the direction of 
+            cylindrical symmetry.
+        """
+
+        beta = np.sqrt( np.abs(1 - ((V/a)**2) ) )
+
+        Cnalfa0 = 2 * np.pi / beta
+        Cnalfa1 =  2 * np.pi * self.Cnalfa1_parcial / (2 + np.sqrt( 4 + ( (beta * self.Cnalfa1_parcial_2 )**2 ) ) )
+
+        # roll forcing moment coefficient derivative
+        Clfdelta = Cnalfa1 * self.Clfdelta_parcial
+        Clf = Clfdelta * self.delta
+
+        Cldomega = self.n * Cnalfa0  * (self.trapezoidal_constant) * np.cos(self.delta) / (self.area * (2 * self.radius)) 
+        Cld = Cldomega * omega/ V
+
+        return Clf - Cld
