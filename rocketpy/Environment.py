@@ -297,9 +297,10 @@ class Environment:
         """
         # Save launch rail ength
         self.rL = railLength
+        self.earthMass = 5.9722e24
 
         # Save gravity value
-        self.g = gravity
+        self.g = float(gravity)
 
         # Initialize constants
         self.earthRadius = 6.3781e6

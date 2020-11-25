@@ -522,6 +522,7 @@ class Flight:
         atol=6 * [1e-3] + 4 * [1e-6] + 3 * [1e-3],
         timeOvershoot=True,
         verbose=False,
+        orbitalFlight = False,
     ):
         """Run a trajectory simulation.
 
@@ -602,6 +603,7 @@ class Flight:
         self.initialSolution = initialSolution
         self.timeOvershoot = timeOvershoot
         self.terminateOnApogee = terminateOnApogee
+        self.orbitalFlight = orbitalFlight
 
         # Modifying Rail Length for a better out of rail condition
         upperRButton = max(self.rocket.railButtons[0])
@@ -1371,7 +1373,13 @@ class Flight:
             (R3 - b * Mt * (alpha2 - omega1 * omega3) + Thrust) / M,
         ]
         ax, ay, az = np.dot(K, L)
-        az -= self.env.g  # Include gravity
+
+        if self.orbitalFlight:
+            gravity = self.orbitalGravity(x, y, z)
+            ax += gravity[0]
+            ay += gravity[1]
+            az += gravity[2]  # Include gravity
+        else: az -= self.env.g
 
         # Create uDot
         uDot = [
@@ -3327,6 +3335,14 @@ class Flight:
         while i < len(nodeList) - 1:
             yield i, nodeList[i]
             i += 1
+
+    def orbitalGravity(self, x, y, z):
+        r = np.sqrt(x**2 + y**2 + z**2) + 6400000
+        phi = np.arccos(z / r)
+        theta = np.arccos(x / (r * np.sin(phi)))
+        g = 6.67408 * self.env.earthMass / r**2
+        #return -9.8 * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
+        return -g * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
 
     class FlightPhases:
         def __init__(self, init_list=[]):
