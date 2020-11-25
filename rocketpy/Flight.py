@@ -1379,7 +1379,8 @@ class Flight:
             ax += gravity[0]
             ay += gravity[1]
             az += gravity[2]  # Include gravity
-        else: az -= self.env.g
+        else:
+            az -= self.env.g
 
         # Create uDot
         uDot = [
@@ -3337,10 +3338,11 @@ class Flight:
             i += 1
 
     def orbitalGravity(self, x, y, z):
-        r = np.sqrt(x**2 + y**2 + z**2) + 6400000
-        phi = np.arccos(z / r)
-        theta = np.arccos(x / (r * np.sin(phi)))
-        g = 6.67408 * self.env.earthMass / r**2
+        v1 = np.array([x, y, z + 6400000])
+        r = np.linalg.norm(v1)
+        phi = np.arccos(v1[2] / r)
+        theta = np.arccos(v1[0] / (r * np.sin(phi)))
+        g = 6.67408e-11 * self.env.earthMass / r**2
         #return -9.8 * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
         return -g * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
 
