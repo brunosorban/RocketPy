@@ -936,69 +936,70 @@ class Flight:
                             phase.timeNodes.flushAfter(node_index)
                             phase.timeNodes.addNode(self.t, [], [])
                             phase.solver.status = "finished"
-                    # Check for impact event
-                    # if self.y[2] < self.env.elevation:
-                    #     # print('\nPASSIVE EVENT DETECTED')
-                    #     # print('Rocket Has Reached Ground!')
-                    #     # Impact reported
-                    #     # Check exactly when it went out using root finding
-                    #     # States before and after
-                    #     # t0 -> 0
-                    #     # Disconsider elevation
-                    #     self.solution[-2][3] -= self.env.elevation
-                    #     self.solution[-1][3] -= self.env.elevation
-                    #     # Get points
-                    #     y0 = self.solution[-2][3]
-                    #     yp0 = self.solution[-2][6]
-                    #     t1 = self.solution[-1][0] - self.solution[-2][0]
-                    #     y1 = self.solution[-1][3]
-                    #     yp1 = self.solution[-1][6]
-                    #     # Put elevation back
-                    #     self.solution[-2][3] += self.env.elevation
-                    #     self.solution[-1][3] += self.env.elevation
-                    #     # Cubic Hermite interpolation (ax**3 + bx**2 + cx + d)
-                    #     D = float(phase.solver.step_size)
-                    #     d = float(y0)
-                    #     c = float(yp0)
-                    #     b = float((3 * y1 - yp1 * D - 2 * c * D - 3 * d) / (D ** 2))
-                    #     a = float(-(2 * y1 - yp1 * D - c * D - 2 * d) / (D ** 3))
-                    #     # Find roots
-                    #     d0 = b ** 2 - 3 * a * c
-                    #     d1 = 2 * b ** 3 - 9 * a * b * c + 27 * d * a ** 2
-                    #     c1 = ((d1 + (d1 ** 2 - 4 * d0 ** 3) ** (0.5)) / 2) ** (1 / 3)
-                    #     t_roots = []
-                    #     for k in [0, 1, 2]:
-                    #         c2 = c1 * (-1 / 2 + 1j * (3 ** 0.5) / 2) ** k
-                    #         t_roots.append(-(1 / (3 * a)) * (b + c2 + d0 / c2))
-                    #     # Find correct root
-                    #     valid_t_root = []
-                    #     for t_root in t_roots:
-                    #         if 0 < t_root.real < t1 and abs(t_root.imag) < 0.001:
-                    #             valid_t_root.append(t_root.real)
-                    #     if len(valid_t_root) > 1:
-                    #         raise ValueError(
-                    #             "Multiple roots found when solving for impact time."
-                    #         )
-                    #     # Determine impact state at t_root
-                    #     self.t = valid_t_root[0] + self.solution[-2][0]
-                    #     interpolator = phase.solver.dense_output()
-                    #     self.y = interpolator(self.t)
-                    #     # Roll back solution
-                    #     self.solution[-1] = [self.t, *self.y]
-                    #     # Save impact state
-                    #     self.impactState = self.y
-                    #     self.xImpact = self.impactState[0]
-                    #     self.yImpact = self.impactState[1]
-                    #     self.zImpact = self.impactState[2]
-                    #     self.impactVelocity = self.impactState[5]
-                    #     self.tFinal = self.t
-                    #     # Set last flight phase
-                    #     self.flightPhases.flushAfter(phase_index)
-                    #     self.flightPhases.addPhase(self.t)
-                    #     # Prepare to leave loops and start new flight phase
-                    #     phase.timeNodes.flushAfter(node_index)
-                    #     phase.timeNodes.addNode(self.t, [], [])
-                    #     phase.solver.status = "finished"
+
+                    #Check for impact event
+                    if self.y[2] < self.env.elevation:
+                        # print('\nPASSIVE EVENT DETECTED')
+                        # print('Rocket Has Reached Ground!')
+                        # Impact reported
+                        # Check exactly when it went out using root finding
+                        # States before and after
+                        # t0 -> 0
+                        # Disconsider elevation
+                        self.solution[-2][3] -= self.env.elevation
+                        self.solution[-1][3] -= self.env.elevation
+                        # Get points
+                        y0 = self.solution[-2][3]
+                        yp0 = self.solution[-2][6]
+                        t1 = self.solution[-1][0] - self.solution[-2][0]
+                        y1 = self.solution[-1][3]
+                        yp1 = self.solution[-1][6]
+                        # Put elevation back
+                        self.solution[-2][3] += self.env.elevation
+                        self.solution[-1][3] += self.env.elevation
+                        # Cubic Hermite interpolation (ax**3 + bx**2 + cx + d)
+                        D = float(phase.solver.step_size)
+                        d = float(y0)
+                        c = float(yp0)
+                        b = float((3 * y1 - yp1 * D - 2 * c * D - 3 * d) / (D ** 2))
+                        a = float(-(2 * y1 - yp1 * D - c * D - 2 * d) / (D ** 3))
+                        # Find roots
+                        d0 = b ** 2 - 3 * a * c
+                        d1 = 2 * b ** 3 - 9 * a * b * c + 27 * d * a ** 2
+                        c1 = ((d1 + (d1 ** 2 - 4 * d0 ** 3) ** (0.5)) / 2) ** (1 / 3)
+                        t_roots = []
+                        for k in [0, 1, 2]:
+                            c2 = c1 * (-1 / 2 + 1j * (3 ** 0.5) / 2) ** k
+                            t_roots.append(-(1 / (3 * a)) * (b + c2 + d0 / c2))
+                        # Find correct root
+                        valid_t_root = []
+                        for t_root in t_roots:
+                            if 0 < t_root.real < t1 and abs(t_root.imag) < 0.001:
+                                valid_t_root.append(t_root.real)
+                        if len(valid_t_root) > 1:
+                            raise ValueError(
+                                "Multiple roots found when solving for impact time."
+                            )
+                        # Determine impact state at t_root
+                        self.t = valid_t_root[0] + self.solution[-2][0]
+                        interpolator = phase.solver.dense_output()
+                        self.y = interpolator(self.t)
+                        # Roll back solution
+                        self.solution[-1] = [self.t, *self.y]
+                        # Save impact state
+                        self.impactState = self.y
+                        self.xImpact = self.impactState[0]
+                        self.yImpact = self.impactState[1]
+                        self.zImpact = self.impactState[2]
+                        self.impactVelocity = self.impactState[5]
+                        self.tFinal = self.t
+                        # Set last flight phase
+                        self.flightPhases.flushAfter(phase_index)
+                        self.flightPhases.addPhase(self.t)
+                        # Prepare to leave loops and start new flight phase
+                        phase.timeNodes.flushAfter(node_index)
+                        phase.timeNodes.addNode(self.t, [], [])
+                        phase.solver.status = "finished"
 
                     # List and feed overshootable time nodes
                     if self.timeOvershoot:
@@ -1373,7 +1374,6 @@ class Flight:
             (R3 - b * Mt * (alpha2 - omega1 * omega3) + Thrust) / M,
         ]
         ax, ay, az = np.dot(K, L)
-
         if self.orbitalFlight:
             gravity = self.orbitalGravity(x, y, z)
             ax += gravity[0]
@@ -3337,14 +3337,21 @@ class Flight:
             yield i, nodeList[i]
             i += 1
 
-    def orbitalGravity(self, x, y, z):
-        v1 = np.array([x, y, z + 6400000])
-        r = np.linalg.norm(v1)
-        phi = np.arccos(v1[2] / r)
-        theta = np.arccos(v1[0] / (r * np.sin(phi)))
-        g = 6.67408e-11 * self.env.earthMass / r**2
-        return -9.8 * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
-        #return -g * np.array([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)])
+    def orbitalGravity(self, x, y, z, r=6375000):
+        v1 = np.array([x, y, z + r])
+        r2 = np.linalg.norm(v1)
+        # print(v1)
+        # print(r2)
+
+        phi2 = np.arccos(v1[2] / r2)
+        theta2 = np.arccos(v1[0] / (r2 * np.sin(phi2)))
+        
+        g = 6.67408e-11 * self.env.earthMass / r2**2
+
+        #return -9.8 * np.array([np.cos(theta2) * np.sin(phi2), np.sin(theta2) * np.sin(phi2), np.cos(phi2)])
+        Vetor = [-g * np.cos(theta2) * np.sin(phi2), -g * np.sin(theta2) * np.sin(phi2), -g * np.cos(phi2)]
+        # print(g)
+        return Vetor
 
     class FlightPhases:
         def __init__(self, init_list=[]):
