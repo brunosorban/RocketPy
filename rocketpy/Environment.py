@@ -398,7 +398,7 @@ class Environment:
         try:
             if self.atmosphericModelType in ["Forecast", "Reanalysis", "Ensemble"]:
                 self.setAtmosphericModel(
-                    self.atmosphericModelFile, self.atmosphericModelDict
+                    self.atmosphericModelType, self.atmosphericModelFile, self.atmosphericModelDict
                 )
         except AttributeError:
             pass
