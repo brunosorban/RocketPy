@@ -3402,6 +3402,140 @@ class Flight:
             yield i, nodeList[i]
             i += 1
 
+    def calculateEquilibriumAltitude(
+        self,
+        mainName="Main",
+        drogueName="Drogue",
+        mainAltitudeEstimate=1500*0.3048,
+        verbose=False
+    ):
+        """Calculate equilibrium altitude
+        Parameters
+        ----------
+        mainName : str, optional
+            Name of the main parachute, by default "Main"
+        drogueName : str, optional
+            Name of the drogue parachute, by default "Drogue"
+        mainAltitudeEstimate : [type], optional
+            Estimate for the main deployment altitude, by default 1500*0.3048
+        verbose : bool, optional
+            If True, print informations, by default False
+        Returns
+        -------
+        float
+            Altitude where equilibrium is reached
+        """
+        if not self.postProcessed:
+            self.postProcess()
+
+        # Considerations:
+        #   - There are only two parachutes, one drogue and one main
+        #   - Detection delay is zero
+        #   - The pressure variation due to imprecisions in the main altitude
+        #     estimation does not affect the calculation
+        #   - The system has reached equilibrium when the acceleration drops to
+        #     1% of the initial value
+        #   - The equilibrium for the drogue has been reached before the main is
+        #     ejected
+
+        apogee = max(self.z[:, 1] - self.env.elevation)
+
+        for parachute in self.rocket.parachutes:
+            if parachute.name == mainName:
+                Main = parachute
+            elif parachute.name == drogueName:
+                Drogue = parachute
+
+
+        # Drogue calculations
+        drogueAltitude = apogee - (self.env.g*(Drogue.lag)**2)/2
+        drogueOpeningSpeed = self.env.g*(Drogue.lag)
+        drogueAirDensity = self.env.density(drogueAltitude)
+        drogueConstant = (drogueAirDensity*Drogue.CdS)/(2*self.rocket.mass)
+        drogueIntegrationConstant = (drogueOpeningSpeed - np.sqrt(self.env.g/drogueConstant))/(drogueOpeningSpeed + np.sqrt(self.env.g/drogueConstant))
+        drogueSolutionConstant = np.log(np.abs(drogueIntegrationConstant))
+
+
+
+        if drogueOpeningSpeed < np.sqrt(self.env.g/drogueConstant):
+            drogueSpeed = lambda t: np.abs(np.sqrt(self.env.g/drogueConstant)*(1 - drogueIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*drogueConstant)*t))/(1 + drogueIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*drogueConstant)*t)))
+
+            drogueAcceleration = lambda t: np.abs((4*drogueIntegrationConstant*np.sqrt(self.env.g/drogueConstant)*np.sqrt(self.env.g*drogueConstant)*np.exp(4*t*np.sqrt(self.env.g*drogueConstant)))/((drogueIntegrationConstant + np.exp(2*t*np.sqrt(self.env.g*drogueConstant)))*(drogueIntegrationConstant*np.exp(2*t*np.sqrt(self.env.g*drogueConstant)) + np.exp(4*t*np.sqrt(self.env.g*drogueConstant)))))
+        else:
+            drogueSpeed = lambda t: np.abs((np.sqrt(self.env.g/drogueConstant)*drogueIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*drogueConstant)*t) + np.sqrt(self.env.g/drogueConstant))/(1 - drogueIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*drogueConstant)*t)))
+
+            drogueAcceleration = lambda t: np.abs((4*drogueIntegrationConstant*np.sqrt(self.env.g/drogueConstant)*np.sqrt(self.env.g*drogueConstant)*np.exp(2*t*np.sqrt(self.env.g*drogueConstant)))/(np.exp(2*t*np.sqrt(self.env.g*drogueConstant)) - drogueIntegrationConstant)**2)
+
+        initialDrogueAcceleration = drogueAcceleration(0)
+        drogueEquilibriumSpeed = np.sqrt((2*(self.env.g - .01*initialDrogueAcceleration)*self.rocket.mass)/(drogueAirDensity*Drogue.CdS))
+        timeToEquilibriumDrogue = ((np.log(np.abs((drogueEquilibriumSpeed - np.sqrt(self.env.g/drogueConstant))/(drogueEquilibriumSpeed + np.sqrt(self.env.g/drogueConstant)))) - drogueSolutionConstant)/(-2*np.sqrt(self.env.g*drogueConstant)))
+
+        drogueSpeed = Function(
+            source=drogueSpeed,
+            inputs=["Time (s)"],
+            outputs=["Drogue speed (m/s)"]
+        )
+
+        drogueEquilibriumDisplacement = drogueSpeed.integral(0, timeToEquilibriumDrogue)
+        drogueEquilibriumAltitude = drogueAltitude - drogueEquilibriumDisplacement
+
+        # Main calculations
+        mainOpeningSpeed = drogueEquilibriumSpeed
+        mainAirDensity = self.env.density(mainAltitudeEstimate)
+        mainConstant = (mainAirDensity*Main.CdS)/(2*self.rocket.mass*Main.lag)
+        mainIntegrationConstant = (mainOpeningSpeed - np.sqrt(self.env.g/mainConstant))/(mainOpeningSpeed + np.sqrt(self.env.g/mainConstant))
+        mainSolutionConstant = np.log(np.abs(mainIntegrationConstant))
+
+        if mainOpeningSpeed < np.sqrt(self.env.g/mainConstant):
+            mainSpeed = lambda t: np.abs(np.sqrt(self.env.g/mainConstant)*(1 - mainIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*mainConstant)*t))/(1 + mainIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*mainConstant)*t)))
+
+            mainAcceleration = lambda t: np.abs((4*mainIntegrationConstant*np.sqrt(self.env.g/mainConstant)*np.sqrt(self.env.g*mainConstant)*np.exp(4*t*np.sqrt(self.env.g*mainConstant)))/((mainIntegrationConstant + np.exp(2*t*np.sqrt(self.env.g*mainConstant)))*(mainIntegrationConstant*np.exp(2*t*np.sqrt(self.env.g*mainConstant)) + np.exp(4*t*np.sqrt(self.env.g*mainConstant)))))
+        else:
+            mainSpeed = lambda t: np.abs((np.sqrt(self.env.g/mainConstant)*mainIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*mainConstant)*t) + np.sqrt(self.env.g/mainConstant))/(1 - mainIntegrationConstant*np.exp(-2*np.sqrt(self.env.g*mainConstant)*t)))
+
+            mainAcceleration = lambda t: np.abs((4*mainIntegrationConstant*np.sqrt(self.env.g/mainConstant)*np.sqrt(self.env.g*mainConstant)*np.exp(2*t*np.sqrt(self.env.g*mainConstant)))/(np.exp(2*t*np.sqrt(self.env.g*mainConstant)) - mainIntegrationConstant)**2)
+
+        initialMainAcceleration = mainAcceleration(0)
+        mainEquilibriumSpeed = np.sqrt((2*(self.env.g - .01*initialMainAcceleration)*self.rocket.mass)/(mainAirDensity*Main.CdS))
+        timeToEquilibriumMain = ((np.log(np.abs((mainEquilibriumSpeed - np.sqrt(self.env.g/mainConstant))/(mainEquilibriumSpeed + np.sqrt(self.env.g/mainConstant)))) - mainSolutionConstant)/(-2*np.sqrt(self.env.g*mainConstant)))
+
+        mainSpeed = Function(
+            source=mainSpeed,
+            inputs=["Time (s)"],
+            outputs=["Main speed (m/s)"]
+        )
+
+        mainEquilibriumDisplacement = mainSpeed.integral(0, timeToEquilibriumMain)
+
+        mainEquilibriumAltitude = mainAltitudeEstimate - mainEquilibriumDisplacement
+
+        if verbose:
+            print("Apogee: ", apogee)
+            print("Drogue altitude: ", drogueAltitude)
+            print("Drogue opening speed: ", drogueOpeningSpeed)
+            print("Drogue air density: ", drogueAirDensity)
+            print("Drogue constant: ", drogueConstant)
+            print("Drogue integration constant: ", drogueIntegrationConstant)
+            print("Drogue solution constant: ", drogueSolutionConstant)
+            print("Initial drogue acceleration: ", initialDrogueAcceleration)
+            print("Drogue equilibrium speed: ", drogueEquilibriumSpeed)
+            print("Time to equilibrium drogue: ", timeToEquilibriumDrogue)
+            print("Drogue equilibrium displacement: ", drogueEquilibriumDisplacement)
+            print("Drogue equilibrium altitude: ", drogueEquilibriumAltitude)
+            print("Main opening speed: ", mainOpeningSpeed)
+            print("Main air density: ", mainAirDensity)
+            print("Main constant: ", mainConstant)
+            print("Main integration constant: ", mainIntegrationConstant)
+            print("Main solution constant: ", mainSolutionConstant)
+            print("Initial main acceleration: ", initialMainAcceleration)
+            print("Main equilibrium speed: ", mainEquilibriumSpeed)
+            print("Time to equilibrium main: ", timeToEquilibriumMain)
+            print("Main equilibrium displacement: ", mainEquilibriumDisplacement)
+            print("Main equilibrium altitude: ", mainEquilibriumAltitude)
+            print("Ideal main altitude: ", mainAltitudeEstimate + 1.5*mainEquilibriumDisplacement)
+
+        return mainEquilibriumAltitude
+
     class FlightPhases:
         def __init__(self, init_list=[]):
             self.list = init_list[:]

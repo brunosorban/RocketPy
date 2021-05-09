@@ -513,9 +513,7 @@ class Rocket:
         # Return self
         return self.aerodynamicSurfaces[-1]
 
-    def addFins(
-        self, n, span, rootChord, tipChord, distanceToCM, radius=0, airfoil=None
-    ):
+    def addFins(self, n, span, rootChord, tipChord, distanceToCM, radius=0, airfoil = None):
         """Create a fin set, storing its parameters as part of the
         aerodynamicSurfaces list. Its parameters are the axial position
         along the rocket and its derivative of the coefficient of lift
@@ -541,9 +539,9 @@ class Rocket:
             is default, use rocket radius. Otherwise, enter the radius
             of the rocket in the section of the fins, as this impacts
             its lift coefficient.
-        airfoil : string
-            Fin's lift curve. It must be a .csv file. The .csv file shall
-            contain no headers and the first column must specify time in
+        airfoil : string 
+            Fin's lift curve. It must be a .csv file. The .csv file shall 
+            contain no headers and the first column must specify time in 
             seconds, while the second column specifies lift coefficient. Lift
             coeffitient is adimentional.
 
@@ -564,7 +562,7 @@ class Rocket:
         radius = self.radius if radius == 0 else radius
         d = 2 * radius
 
-        # Save geometric parameters for later Fin Flutter Analysis
+        # Save geometric parameters for later Fin Flutter Analysis 
         self.rootChord = Cr
         self.tipChord = Ct
         self.span = s
@@ -589,9 +587,7 @@ class Rocket:
             clalpha *= 1 + radius / (s + radius)
 
             # # Create a function of lift values by attack angle
-            cldata = Function(
-                lambda x: clalpha * x, "Alpha (rad)", "Cl", interpolation="linear"
-            )
+            cldata = Function(lambda x: clalpha*x,'Alpha (rad)', 'Cl', interpolation='linear')
 
             # Store values
             fin = [(0, 0, cpz), cldata, "Fins"]
@@ -604,9 +600,8 @@ class Rocket:
             return self.aerodynamicSurfaces[-1]
 
         else:
-
-            def cnalfa1(cn):
-                """Calculates the normal force coefficient derivative of a 3D
+            def cnalfa1(cn, Cnalfa0):
+                """Calculates the normal force coefficient derivative of a 3D 
                 airfoil for a given Cnalfa0
 
                 Parameters
@@ -619,36 +614,23 @@ class Rocket:
                 Cnalfa1 : int
                     Normal force coefficient derivative of a 3D airfoil.
                 """
-
+               
                 # Retrieve parameters for calculations
-                Af = (Cr + Ct) * span / 2
-                # fin area
-                AR = 2 * (span ** 2) / Af  # Aspect ratio
-                gamac = np.arctan((Cr - Ct) / (2 * span))
-                # mid chord angle
-                FD = 2 * np.pi * AR / (cn * np.cos(gamac))
-                Cnalfa1 = (
-                    cn
-                    * FD
-                    * (Af / self.area)
-                    * np.cos(gamac)
-                    / (2 + FD * (1 + (4 / FD ** 2)) ** 0.5)
-                )
+                Af = (Cr + Ct) * span / 2; # fin area
+                AR= 2 * (span**2) / Af # Aspect ratio
+                gamac = np.arctan( (Cr - Ct) / (2 * span) ); # mid chord angle
+                FD = 2 * np.pi * AR / (Cnalfa0 * np.cos(gamac))
+                Cnalfa1 = cn * FD * (Af/self.area) * np.cos(gamac) / (2 + FD * ( 1 + (4/FD**2) )**0.5)
                 return Cnalfa1
 
             # Import the lift curve as a function of lift values by attack angle
-            read = genfromtxt(airfoil, delimiter=",")
+            read = genfromtxt(airfoil, delimiter = ',')
+            cnalfa0 = Function(read).differentiate(0, 1e-1)
 
             # Aplies number of fins to lift coefficient data
-            data = [[cl[0], (n / 2) * cnalfa1(cl[1])] for cl in read]
-            cldata = Function(
-                data,
-                "Alpha (rad)",
-                "Cl",
-                interpolation="linear",
-                extrapolation="natural",
-            )
-
+            data = [[cl[0], (n / 2) * cnalfa1(cl[1], cnalfa0)] for cl in read]
+            cldata = Function(data, 'Alpha (rad)', 'Cl', interpolation='linear', extrapolation = 'natural')
+            
             # Takes an approximation to an angular coefficient
             clalpha = cldata.differentiate(x=0, dx=1e-2)
 
